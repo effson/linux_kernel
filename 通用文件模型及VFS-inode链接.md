@@ -11,6 +11,7 @@ i_fop指向文件操作集合file_operations，用来访问文件的数据<br>
 
 ```c
 struct inode_operations {
+	// 在某个目录 inode 下，查找特定名字（由 dentry 表示）对应的子文件或子目录的 inode
 	struct dentry * (*lookup) (struct inode *,struct dentry *, unsigned int);
 	const char * (*get_link) (struct dentry *, struct inode *, struct delayed_call *);
 	int (*permission) (struct mnt_idmap *, struct inode *, int);
@@ -18,12 +19,15 @@ struct inode_operations {
 
 	int (*readlink) (struct dentry *, char __user *,int);
 
+	// 系统调用 open() 配合 O_CREAT 标志执行时所触发的函数，dir表示在哪个目录下创建文件（父目录）
+	// dentry表示新建文件的名字（以及将绑定 inode），excl表示 O_EXCL 是否设置（用于确保独占创建）
 	int (*create) (struct mnt_idmap *, struct inode *,struct dentry *,
 		       umode_t, bool);
 	int (*link) (struct dentry *,struct inode *,struct dentry *);
 	int (*unlink) (struct inode *,struct dentry *);
 	int (*symlink) (struct mnt_idmap *, struct inode *,struct dentry *,
 			const char *);
+	// mkdir() 系统调用，返回值是 struct dentry *，需要用 d_instantiate() 绑定新 inode
 	struct dentry *(*mkdir) (struct mnt_idmap *, struct inode *,
 				 struct dentry *, umode_t);
 	int (*rmdir) (struct inode *,struct dentry *);

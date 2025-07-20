@@ -99,3 +99,76 @@ ssize_t generic_file_read_iter(struct kiocb *iocb, struct iov_iter *iter)
 	return filemap_read(iocb, iter, retval);
 }
 ```
+> ssize_t filemap_read(struct kiocb *iocb, struct iov_iter *iter,
+		ssize_t already_read)<br>
+> static int filemap_get_pages(struct kiocb *iocb, size_t count,
+		struct folio_batch *fbatch, bool need_uptodate)<br>
+```c
+static int filemap_get_pages(struct kiocb *iocb, size_t count,
+		struct folio_batch *fbatch, bool need_uptodate)
+{
+	struct file *filp = iocb->ki_filp;
+	struct address_space *mapping = filp->f_mapping;
+	pgoff_t index = iocb->ki_pos >> PAGE_SHIFT;  // index 是当前偏移所在的页索引
+	pgoff_t last_index;
+	struct folio *folio;
+	unsigned int flags;
+	int err = 0;
+
+	/* "last_index" is the index of the page beyond the end of the read */
+	/* last_index 是这次读取操作中最后需要的页的索引 + 1 */
+	last_index = DIV_ROUND_UP(iocb->ki_pos + count, PAGE_SIZE);
+retry:
+	if (fatal_signal_pending(current))
+		return -EINTR;
+
+	filemap_get_read_batch(mapping, index, last_index - 1, fbatch);
+	if (!folio_batch_count(fbatch)) {
+		DEFINE_READAHEAD(ractl, filp, &filp->f_ra, mapping, index);
+
+		if (iocb->ki_flags & IOCB_NOIO)
+			return -EAGAIN;
+		if (iocb->ki_flags & IOCB_NOWAIT)
+			flags = memalloc_noio_save();
+		if (iocb->ki_flags & IOCB_DONTCACHE)
+			ractl.dropbehind = 1;
+		page_cache_sync_ra(&ractl, last_index - index);
+		if (iocb->ki_flags & IOCB_NOWAIT)
+			memalloc_noio_restore(flags);
+		filemap_get_read_batch(mapping, index, last_index - 1, fbatch);
+	}
+	if (!folio_batch_count(fbatch)) {
+		err = filemap_create_folio(iocb, fbatch);
+		if (err == AOP_TRUNCATED_PAGE)
+			goto retry;
+		return err;
+	}
+
+	folio = fbatch->folios[folio_batch_count(fbatch) - 1];
+	if (folio_test_readahead(folio)) {
+		err = filemap_readahead(iocb, filp, mapping, folio, last_index);
+		if (err)
+			goto err;
+	}
+	if (!folio_test_uptodate(folio)) {
+		if ((iocb->ki_flags & IOCB_WAITQ) &&
+		    folio_batch_count(fbatch) > 1)
+			iocb->ki_flags |= IOCB_NOWAIT;
+		err = filemap_update_page(iocb, mapping, count, folio,
+					  need_uptodate);
+		if (err)
+			goto err;
+	}
+
+	trace_mm_filemap_get_pages(mapping, index, last_index - 1);
+	return 0;
+err:
+	if (err < 0)
+		folio_put(folio);
+	if (likely(--fbatch->nr))
+		return 0;
+	if (err == AOP_TRUNCATED_PAGE)
+		goto retry;
+	return err;
+}
+```

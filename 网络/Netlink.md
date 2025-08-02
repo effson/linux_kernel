@@ -125,6 +125,40 @@ struct nlattr {
 	__u16           nla_type;
 };
 ```
+### 2.4 创建和发送通用Netlink消息
+>include/uapi/linux/genetlink.h
+```c
+// Generic Netlink 特有头
+struct genlmsghdr {
+	__u8	cmd; //子命令号（由你自己定义）
+	__u8	version;// 协议版本
+	__u16	reserved;// 保留位，必须为0
+};
+```
+```c
+/**
+ 向默认网络命名空间（init_net）中某个 Generic Netlink 多播组广播一条 Netlink 消息（skb），
+ 通知所有已加入该组的用户空间监听者
+ * genlmsg_multicast - multicast a netlink message to the default netns
+ * @family: the generic netlink family
+ * @skb: netlink message as socket buffer
+ * @portid: own netlink portid to avoid sending to yourself
+ * @group: offset of multicast group in groups array
+ * @flags: allocation flags
+ */
+static inline int genlmsg_multicast(const struct genl_family *family,
+				    struct sk_buff *skb, u32 portid,
+				    unsigned int group, gfp_t flags)
+{
+	return genlmsg_multicast_netns(family, &init_net, skb,
+				       portid, group, flags);
+}
+/* 发送到所有命名空间
+ */
+int genlmsg_multicast_allns(const struct genl_family *family,
+			    struct sk_buff *skb, u32 portid,
+			    unsigned int group);
+```
 ## 3.控制TCP/IP联网的用户空间包 (iproute2/net-tools)
 > iproute2（ip 命令）现代主流网络管理工具，替代传统 ifconfig和route，如：ip addr, ip route, ip link等，使用 Netlink 与内核通信
 #### 3.1 ip

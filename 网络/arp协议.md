@@ -17,7 +17,10 @@ struct arphdr {
 	unsigned char		ar_tip[4];		/* target IP address		*/
 #endif
 };
+```
 
+ar_pro:
+```
 #define ETH_P_IP	0x0800		/* Internet Protocol packet	*/
 #define ETH_P_IPV6	0x86DD		/* IPv6 over bluebook		*/
 ```

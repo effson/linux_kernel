@@ -272,6 +272,6 @@ void unregister_netdevice_queue(struct net_device *dev, struct list_head *head)
 - CPU 响应中断后，关闭后续中断
 - 接下来不靠中断了，而是由系统定期或在 softirq 中 主动轮询网卡 是否有新包
 - 一次性收一批包（如 64 个），再恢复中断
-- 
+
 优势： 减少中断次数，适合高吞吐数据场景（如万兆网卡）
 

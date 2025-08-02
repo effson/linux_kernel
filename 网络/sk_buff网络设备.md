@@ -233,10 +233,24 @@ err_free_name:
 }
 ```
 
->> include/linux/netdevice.h
+> include/linux/netdevice.h
 ```c
 static inline void unregister_netdevice(struct net_device *dev)
 {
 	unregister_netdevice_queue(dev, NULL);
+}
+
+void unregister_netdevice_queue(struct net_device *dev, struct list_head *head)
+{
+	ASSERT_RTNL();
+
+	if (head) {
+		list_move_tail(&dev->unreg_list, head);
+	} else {
+		LIST_HEAD(single);
+
+		list_add(&dev->unreg_list, &single);
+		unregister_netdevice_many(&single);
+	}
 }
 ```

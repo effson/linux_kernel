@@ -100,11 +100,11 @@ int nlmsg_notify(struct sock *sk, struct sk_buff *skb, u32 portid,
 >include/uapi/linux/netlink.h
 ```c
 struct nlmsghdr {
-	__u32		nlmsg_len;
-	__u16		nlmsg_type;
-	__u16		nlmsg_flags;
-	__u32		nlmsg_seq;
-	__u32		nlmsg_pid;
+	__u32		nlmsg_len; // 消息总长度
+	__u16		nlmsg_type; //消息类型（如 RTM_NEWLINK, RTM_GETROUTE，或用户自定义）
+	__u16		nlmsg_flags; // NLM_F_REQUEST、NLM_F_ACK、NLM_F_DUMP、NLM_F_MULTI...
+	__u32		nlmsg_seq; // 序列号，用于匹配请求与响应
+	__u32		nlmsg_pid; // 消息发送者 PID（用户空间一般为 getpid()，内核为 0）
 };
 ```
 

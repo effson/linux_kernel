@@ -91,3 +91,5 @@ static int ip_finish_output2(struct net *net, struct sock *sk, struct sk_buff *s
 	return PTR_ERR(neigh);
 }
 ```
+### 3.ARP包接收
+参考邻接子系统第6部分。

@@ -79,7 +79,7 @@ static int ip_finish_output2(struct net *net, struct sock *sk, struct sk_buff *s
 
 		sock_confirm_neigh(skb, neigh);
 		/* if crossing protocols, can not use the cached header */
-		res = neigh_output(neigh, skb, is_v6gw);  // 调用 neighbour->
+		res = neigh_output(neigh, skb, is_v6gw);  // 调用 struct neighbour->struct neigh_ops -> output函数
 		rcu_read_unlock();
 		return res;
 	}

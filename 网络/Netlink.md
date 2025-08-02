@@ -28,14 +28,20 @@ struct sockaddr_nl {
 };
 ```
 ## 3.控制TCP/IP联网的用户空间包 (iproute2/net-tools)
-iproute2（ip 命令）现代主流网络管理工具，替代传统 ifconfig和route，如：ip addr, ip route, ip link等，使用 Netlink 与内核通信
-### 3.1 ip
+> iproute2（ip 命令）现代主流网络管理工具，替代传统 ifconfig和route，如：ip addr, ip route, ip link等，使用 Netlink 与内核通信
+#### 3.1 ip
 ip 命令是 Linux 中用于配置和查看 TCP/IP 网络的重要工具，管理网络表和网络接口，属于 iproute2 工具包
-### 3.2 tc
+#### 3.2 tc
 tc（Traffic Control）命令是 Linux 中用于配置 流量控制（QoS） 的强大工具，属于 iproute2 工具集。
-### 3.3 ss
+#### 3.3 ss
 ss（Socket Stat）命令是 Linux 中用于查看当前系统中 socket（套接字）连接信息 的工具，功能类似旧的 netstat，但更快、信息更全面
-### 3.4 lnstat
+#### 3.4 lnstat
 lnstat 是 Linux 系统中的一个 网络统计工具，用于显示内核中各种 网络子系统统计表的内容
-### 3.5 bridge
+#### 3.5 bridge
 bridge 是 Linux 中的一个命令行工具，用于配置和管理 Linux 内核中的桥接（Bridge）网络设备。它是 iproute2 套件的一部分，专门用于处理以太网网桥相关的操作
+> net-tools
+#### 3.6 ifconfig
+#### 3.7 arp
+#### 3.8 route
+#### 3.9 netstat
+#### 3.10 hostname

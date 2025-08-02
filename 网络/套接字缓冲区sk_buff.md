@@ -1,6 +1,6 @@
-### 2.5 套接字缓冲区
+### 套接字缓冲区
 sk_buff（socket buffer）是 Linux 网络协议栈中最核心的数据结构之一，在内核各层之间传递网络数据包，是 Linux 网络栈中所有数据包的封装容器
-#### 2.5.1 内核结构体
+### 内核结构体
 > include/linux/skbuff.h
 ```c
 struct sk_buff {

@@ -21,3 +21,13 @@ struct arphdr {
 #define ETH_P_IP	0x0800		/* Internet Protocol packet	*/
 #define ETH_P_IPV6	0x86DD		/* IPv6 over bluebook		*/
 ```
+ar_op:
+```
+ARPOP_REQUEST	1	ARP 请求（Who has IP X? Tell me your MAC）
+ARPOP_REPLY	2	ARP 应答（IP X is at MAC Y）
+ARPOP_RREQUEST	3	RARP 请求（少见）
+ARPOP_RREPLY	4	RARP 应答
+ARPOP_InREQUEST	8	Inverse ARP 请求（Frame Relay 使用）
+ARPOP_InREPLY	9	Inverse ARP 应答
+ARPOP_NAK	10	ARP NAK（不常用，部分协议扩展使用）
+```

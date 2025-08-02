@@ -19,10 +19,11 @@ Netlink 是一种基于 socket 的 IPC（进程间通信）机制，通过一种
 ### 2.1 struct sockaddr_nl
 > include/uapi/linux/netlink.h
 ```c
+/* Netlink socket 地址结构，它在 Netlink 通信中用于标识一个通信端点（用户进程或内核）*/
 struct sockaddr_nl {
 	__kernel_sa_family_t	nl_family;	/* AF_NETLINK	*/
-	unsigned short	nl_pad;		/* zero		*/
-	__u32		nl_pid;		/* port ID	*/
+	unsigned short	nl_pad;		/* zero	保留字段，必须填 0	*/
+	__u32		nl_pid;		/* port ID  端口号，通常为进程 PID，内核端使用 0	*/
        	__u32		nl_groups;	/* multicast groups mask */
 };
 ```

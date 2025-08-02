@@ -62,7 +62,40 @@ static int rtnl_unregister(int protocol, int msgtype)
 	return 0;
 }
 ```
+### 2.3 数据包的发送
+> net/netlink/af_netlink.c
+```c
+int nlmsg_notify(struct sock *sk, struct sk_buff *skb, u32 portid,
+		 unsigned int group, int report, gfp_t flags)
+{
+	int err = 0;
 
+	if (group) {
+		int exclude_portid = 0;
+
+		if (report) {
+			refcount_inc(&skb->users);
+			exclude_portid = portid;
+		}
+
+		/* errors reported via destination sk->sk_err, but propagate
+		 * delivery errors if NETLINK_BROADCAST_ERROR flag is set */
+		err = nlmsg_multicast(sk, skb, exclude_portid, group, flags);
+		if (err == -ESRCH)
+			err = 0;
+	}
+
+	if (report) {
+		int err2;
+
+		err2 = nlmsg_unicast(sk, skb, portid);
+		if (!err)
+			err = err2;
+	}
+
+	return err;
+}
+```
 ## 3.控制TCP/IP联网的用户空间包 (iproute2/net-tools)
 > iproute2（ip 命令）现代主流网络管理工具，替代传统 ifconfig和route，如：ip addr, ip route, ip link等，使用 Netlink 与内核通信
 #### 3.1 ip

@@ -15,7 +15,7 @@ Netlink 是一种基于 socket 的 IPC（进程间通信）机制，通过一种
 入阻塞状态；内核可以主动向用户空间发送异步消息，而不需要用户空间来触发；netlink套接字支持组播传输。要在用户空间
 中创建netlink套接字，可使用系统调用socket()，netlink套接字就可以是SOCK_RAW套接字，也可以是SOCK_DGRAM套接
 字。
-## 2.netlink数据结构源码
+## 2.netlink内核源码
 ### 2.1 struct sockaddr_nl
 > include/uapi/linux/netlink.h
 ```c
@@ -27,6 +27,42 @@ struct sockaddr_nl {
        	__u32		nl_groups;	/* multicast groups mask */
 };
 ```
+### 2.2 创建netlink套接字
+> include/linux/netlink.h
+```c
+static inline struct sock *
+netlink_kernel_create(struct net *net, int unit, struct netlink_kernel_cfg *cfg)
+{
+	return __netlink_kernel_create(net, unit, THIS_MODULE, cfg);
+}
+```
+
+```c
+static int rtnl_unregister(int protocol, int msgtype)
+{
+	struct rtnl_link __rcu **tab;
+	struct rtnl_link *link;
+	int msgindex;
+
+	BUG_ON(protocol < 0 || protocol > RTNL_FAMILY_MAX);
+	msgindex = rtm_msgindex(msgtype);
+
+	rtnl_lock();
+	tab = rtnl_dereference(rtnl_msg_handlers[protocol]);
+	if (!tab) {
+		rtnl_unlock();
+		return -ENOENT;
+	}
+
+	link = rcu_replace_pointer_rtnl(tab[msgindex], NULL);
+	rtnl_unlock();
+
+	kfree_rcu(link, rcu);
+
+	return 0;
+}
+```
+
 ## 3.控制TCP/IP联网的用户空间包 (iproute2/net-tools)
 > iproute2（ip 命令）现代主流网络管理工具，替代传统 ifconfig和route，如：ip addr, ip route, ip link等，使用 Netlink 与内核通信
 #### 3.1 ip

@@ -12,6 +12,9 @@ struct net_device {
 	  struct list_head	unreg_list;
 	  struct list_head	close_list;
 	  struct list_head	ptype_all;
+	/*含义：该设备上注册的全部 packet_type 的链表
+	packet_type 是 Linux 中用来匹配协议类型的结构（如 ETH_P_ALL、ETH_P_IP 等）
+	所有协议处理函数（如 ARP、IP）都挂在这里或 ptype_base[]*/
 
 	  struct {
 		  struct list_head upper;

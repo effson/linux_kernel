@@ -1,3 +1,4 @@
+### 1. 内核结构体
 > include/uapi/linux/if_arp.h
 ```c
 struct arphdr {
@@ -34,3 +35,5 @@ ARPOP_InREQUEST	8	Inverse ARP 请求（Frame Relay 使用）
 ARPOP_InREPLY	9	Inverse ARP 应答
 ARPOP_NAK	10	ARP NAK（不常用，部分协议扩展使用）
 ```
+### 2.ARP请求帧格式
+<img width="682" height="63" alt="image" src="https://github.com/user-attachments/assets/a4b187bf-c8e7-4a3a-8bc7-d3dd28d383d2" />

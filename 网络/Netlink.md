@@ -108,6 +108,23 @@ struct nlmsghdr {
 };
 ```
 
+### 2.3 netlink属性头
+>include/uapi/linux/netlink.h
+```c
+/*
+ *  <------- NLA_HDRLEN ------> <-- NLA_ALIGN(payload)-->
+ * +---------------------+- - -+- - - - - - - - - -+- - -+
+ * |        Header       | Pad |     Payload       | Pad |
+ * |   (struct nlattr)   | ing |                   | ing |
+ * +---------------------+- - -+- - - - - - - - - -+- - -+
+ *  <-------------- nlattr->nla_len -------------->
+ */
+
+struct nlattr {
+	__u16           nla_len;
+	__u16           nla_type;
+};
+```
 ## 3.控制TCP/IP联网的用户空间包 (iproute2/net-tools)
 > iproute2（ip 命令）现代主流网络管理工具，替代传统 ifconfig和route，如：ip addr, ip route, ip link等，使用 Netlink 与内核通信
 #### 3.1 ip

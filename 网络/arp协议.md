@@ -2,7 +2,7 @@
 ```c
 struct arphdr {
 	__be16		ar_hrd;		/* 硬件类型	*/
-	__be16		ar_pro;		/* 协议类型	*/
+	__be16		ar_pro;		/* 协议类型 ipv4为0x80	*/
 	unsigned char	ar_hln;		/* 硬件地址长度	*/
 	unsigned char	ar_pln;		/* 协议地址长度	*/
 	__be16		ar_op;		/* ARP 操作类型	*/
@@ -17,4 +17,7 @@ struct arphdr {
 	unsigned char		ar_tip[4];		/* target IP address		*/
 #endif
 };
+
+#define ETH_P_IP	0x0800		/* Internet Protocol packet	*/
+#define ETH_P_IPV6	0x86DD		/* IPv6 over bluebook		*/
 ```

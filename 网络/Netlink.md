@@ -96,7 +96,7 @@ int nlmsg_notify(struct sock *sk, struct sk_buff *skb, u32 portid,
 	return err;
 }
 ```
-### 2.3 netlink消息报头
+### 2.4 netlink消息报头
 >include/uapi/linux/netlink.h
 ```c
 struct nlmsghdr {
@@ -108,7 +108,7 @@ struct nlmsghdr {
 };
 ```
 
-### 2.3 netlink属性头
+### 2.5 netlink属性头
 >include/uapi/linux/netlink.h
 ```c
 /*
@@ -125,7 +125,7 @@ struct nlattr {
 	__u16           nla_type;
 };
 ```
-### 2.4 创建和发送通用Netlink消息
+### 2.6 创建和发送通用Netlink消息
 >include/uapi/linux/genetlink.h
 ```c
 // Generic Netlink 特有头
@@ -159,6 +159,30 @@ int genlmsg_multicast_allns(const struct genl_family *family,
 			    struct sk_buff *skb, u32 portid,
 			    unsigned int group);
 ```
+
+### 2.7 套接字监视接口
+sock_diag 是 Linux 内核中的一种 Netlink socket 监控机制，用于在用户空间查询和监控内核中的 socket 状态，包括：<br>
+- TCP、UDP 套接字状态（如 ESTABLISHED、TIME_WAIT 等）
+- Unix 域套接字状态
+- 内核 socket 信息（如 IP、端口、队列大小、PID 绑定等）
+
+> net/core/sock_diag.c<br>
+创建源码：
+```c
+static int __net_init diag_net_init(struct net *net)
+{
+	struct netlink_kernel_cfg cfg = {
+		.groups	= SKNLGRP_MAX,
+		.input	= sock_diag_rcv,
+		.bind	= sock_diag_bind,
+		.flags	= NL_CFG_F_NONROOT_RECV,
+	};
+
+	net->diag_nlsk = netlink_kernel_create(net, NETLINK_SOCK_DIAG, &cfg);
+	return net->diag_nlsk == NULL ? -ENOMEM : 0;
+}
+```
+
 ## 3.控制TCP/IP联网的用户空间包 (iproute2/net-tools)
 > iproute2（ip 命令）现代主流网络管理工具，替代传统 ifconfig和route，如：ip addr, ip route, ip link等，使用 Netlink 与内核通信
 #### 3.1 ip

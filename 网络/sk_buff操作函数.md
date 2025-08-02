@@ -24,6 +24,9 @@ static inline unsigned char *skb_transport_header(const struct sk_buff *skb)
 	DEBUG_NET_WARN_ON_ONCE(!skb_transport_header_was_set(skb));
 	return skb->head + skb->transport_header;
 }
+```
+
+```c
 /*当前 skb->data 指向的位置作为 TCP/UDP 层协议头（transport layer header）的位置，
   并记录在 skb->transport_header 中*/ 
 static inline void skb_reset_transport_header(struct sk_buff *skb)
@@ -34,6 +37,7 @@ static inline void skb_reset_transport_header(struct sk_buff *skb)
 	skb->transport_header = offset;
 }
 ```
+
 ```c
 // 分配一个 sk_buff 结构和数据缓冲区
 static inline struct sk_buff *alloc_skb(unsigned int size, gfp_t priority)
@@ -41,6 +45,7 @@ static inline struct sk_buff *alloc_skb(unsigned int size, gfp_t priority)
     return __alloc_skb(size, priority, 0, NUMA_NO_NODE);
 }
 ```
+
 ```c
 // 获取剩余空间大小（end - tail）
 static inline int skb_tailroom(const struct sk_buff *skb)
@@ -48,6 +53,7 @@ static inline int skb_tailroom(const struct sk_buff *skb)
     return skb_is_nonlinear(skb) ? 0 : skb->end - skb->tail;
 }
 ```
+
 ```c
 // 返回当前 skb 中 data 指针与 head 指针之间的字节数，即头部预留空间的大小（headroom）
 static inline unsigned int skb_headroom(const struct sk_buff *skb)
@@ -55,9 +61,11 @@ static inline unsigned int skb_headroom(const struct sk_buff *skb)
     return skb->data - skb->head;
 }
 ```
+
 <br>
 <br>
 > net/core/stbuff.c
+
 ```c
 // 浅拷贝（共享数据区，复制结构体）
 struct sk_buff *skb_clone(struct sk_buff *skb, gfp_t gfp_mask)
@@ -89,6 +97,7 @@ struct sk_buff *skb_clone(struct sk_buff *skb, gfp_t gfp_mask)
 	return __skb_clone(n, skb);
 }
 ```
+
 ```c
 /*将用户态传来的“用户页数据（user buffers）”复制成内核可控的 page frags
 	（页片段）并附加到 skb 中，形成非线性 skb（即 data_len > 0）*/
@@ -177,6 +186,7 @@ release:
 	return 0;
 }
 ```
+
 ```c
 // 重新分配一个新的 skb，并为其保留指定大小的 headroom（头部空间），同时复制原始数据和元信息
 struct sk_buff *skb_realloc_headroom(struct sk_buff *skb, unsigned int headroom)

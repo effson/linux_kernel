@@ -96,6 +96,18 @@ int nlmsg_notify(struct sock *sk, struct sk_buff *skb, u32 portid,
 	return err;
 }
 ```
+### 2.3 netlink消息报头
+>include/uapi/linux/netlink.h
+```c
+struct nlmsghdr {
+	__u32		nlmsg_len;
+	__u16		nlmsg_type;
+	__u16		nlmsg_flags;
+	__u32		nlmsg_seq;
+	__u32		nlmsg_pid;
+};
+```
+
 ## 3.控制TCP/IP联网的用户空间包 (iproute2/net-tools)
 > iproute2（ip 命令）现代主流网络管理工具，替代传统 ifconfig和route，如：ip addr, ip route, ip link等，使用 Netlink 与内核通信
 #### 3.1 ip

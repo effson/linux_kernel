@@ -280,3 +280,91 @@ struct nf_conn {
 	union nf_conntrack_proto proto;
 };
 ```
+
+> net/netfilter/nf_conntrack_core.c
+```c
+unsigned int
+nf_conntrack_in(struct sk_buff *skb, const struct nf_hook_state *state)
+{
+	enum ip_conntrack_info ctinfo;
+	struct nf_conn *ct, *tmpl;
+	u_int8_t protonum;
+	int dataoff, ret;
+
+	tmpl = nf_ct_get(skb, &ctinfo);
+	if (tmpl || ctinfo == IP_CT_UNTRACKED) {
+		/* Previously seen (loopback or untracked)?  Ignore. */
+		if ((tmpl && !nf_ct_is_template(tmpl)) ||
+		     ctinfo == IP_CT_UNTRACKED)
+			return NF_ACCEPT;
+		skb->_nfct = 0;
+	}
+
+	/* rcu_read_lock()ed by nf_hook_thresh */
+	dataoff = get_l4proto(skb, skb_network_offset(skb), state->pf, &protonum);
+	if (dataoff <= 0) {
+		NF_CT_STAT_INC_ATOMIC(state->net, invalid);
+		ret = NF_ACCEPT;
+		goto out;
+	}
+
+	if (protonum == IPPROTO_ICMP || protonum == IPPROTO_ICMPV6) {
+		ret = nf_conntrack_handle_icmp(tmpl, skb, dataoff,
+					       protonum, state);
+		if (ret <= 0) {
+			ret = -ret;
+			goto out;
+		}
+		/* ICMP[v6] protocol trackers may assign one conntrack. */
+		if (skb->_nfct)
+			goto out;
+	}
+repeat:
+	ret = resolve_normal_ct(tmpl, skb, dataoff,
+				protonum, state);
+	if (ret < 0) {
+		/* Too stressed to deal. */
+		NF_CT_STAT_INC_ATOMIC(state->net, drop);
+		ret = NF_DROP;
+		goto out;
+	}
+
+	ct = nf_ct_get(skb, &ctinfo);
+	if (!ct) {
+		/* Not valid part of a connection */
+		NF_CT_STAT_INC_ATOMIC(state->net, invalid);
+		ret = NF_ACCEPT;
+		goto out;
+	}
+
+	ret = nf_conntrack_handle_packet(ct, skb, dataoff, ctinfo, state);
+	if (ret <= 0) {
+		/* Invalid: inverse of the return code tells
+		 * the netfilter core what to do */
+		nf_ct_put(ct);
+		skb->_nfct = 0;
+		/* Special case: TCP tracker reports an attempt to reopen a
+		 * closed/aborted connection. We have to go back and create a
+		 * fresh conntrack.
+		 */
+		if (ret == -NF_REPEAT)
+			goto repeat;
+
+		NF_CT_STAT_INC_ATOMIC(state->net, invalid);
+		if (ret == NF_DROP)
+			NF_CT_STAT_INC_ATOMIC(state->net, drop);
+
+		ret = -ret;
+		goto out;
+	}
+
+	if (ctinfo == IP_CT_ESTABLISHED_REPLY &&
+	    !test_and_set_bit(IPS_SEEN_REPLY_BIT, &ct->status))
+		nf_conntrack_event_cache(IPCT_REPLY, ct);
+out:
+	if (tmpl)
+		nf_ct_put(tmpl);
+
+	return ret;
+}
+```

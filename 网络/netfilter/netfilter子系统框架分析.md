@@ -10,7 +10,7 @@ iptables 是 Linux 内核 Netfilter 子系统的前端接口，用来定义数�
 
 # 2.Netfilter挂载点
 > include/uapi/linux/netfilter.h<br>
-在网络栈有5个地方设置Netfilter挂载点：
+在网络栈有5个地方设置Netfilter挂载点，具体源码解析可以参考网络层的md资料：
 ```c
 enum nf_inet_hooks {
 	NF_INET_PRE_ROUTING,
@@ -22,3 +22,5 @@ enum nf_inet_hooks {
 	NF_INET_INGRESS = NF_INET_NUMHOOKS,
 };
 ```
+## 2.1 NF_INET_PRE_ROUTING
+在IPv4中，这个挂接点方法为ip_rcv(),在IPv4中为ipv6_rcv(),所有的入栈数据包遇到的第一个挂载点，处于路由选择子系统查找之前。

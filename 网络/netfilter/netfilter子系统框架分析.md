@@ -30,3 +30,5 @@ enum nf_inet_hooks {
 在IPv4中，这个挂接点方法为ip_forward(),在IPv6中为ip6_forward(),所有要转发的数据包，经过NF_INET_PRE_ROUTING并执行路由选择子系统查找后，都将到达这个挂载点
 ## 2.4 NF_INET_POST_ROUTING
 在IPv4中，这个挂接点方法为ip_output(),在IPv6中为ip6_finish_output2(),所有要转发的数据包，经过NF_INET_FORWARD后，都将到达这个挂载点;主机生成的数据包经过NF_INET_LOCAL_OUT后将到达这个挂接点
+## 2.5 NF_INET_LOCAL_OUT
+在IPv4中，这个挂接点方法为__ip_local_out(),在IPv6中为ip6_local_out(),所有要转发的数据包，主机生成的数据包经过这个挂载点后将到达NF_INET_POST_ROUTING挂接点

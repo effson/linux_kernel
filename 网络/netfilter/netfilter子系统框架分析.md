@@ -1,4 +1,4 @@
-# 1.netfilter子系统框架
+# 1. netfilter子系统框架
 ## 1.1 IPVS
 IPVS（IP Virtual Server）是 Linux 内核中用于实现 四层（L4）负载均衡 的内核子系统，它是 LVS（Linux Virtual Server）项目 的核心组件。它提供一种高性能、高可用、基于 IP 层的负载均衡解决方案，它通过修改数据包的目标地址，将客户端请求分发到后端多个真实服务器（Real Servers）上，实现服务的扩展与容错
 ## 1.2 IP sets
@@ -74,3 +74,151 @@ static inline int nf_hook(u_int8_t pf, unsigned int hook, struct net *net,
 正在处理的数据包，Netfilter 所有钩子都处理它。可以查看/修改它的 IP 头、TCP 头、payload 等
 #### 2.2.1.6 struct net_device *indev, struct net_device *outdev
 入站网络设备（Inbound Network Device）和 出站网络设备（Outbound Network Device）。
+#### 2.2.1.7 int (*okfn)(struct net *, struct sock *, struct sk_buff *)
+“一切正常”的回调函数（"OK" Function），如果 Netfilter 钩子链中的所有规则都接受 (NF_ACCEPT) 数据包，并且数据包没有被其他钩子点处理或丢弃，那么 nf_hook 函数最终会调用这个 okfn 回调函数，将数据包递交给网络栈的下一个处理阶段
+
+### 2.2.2 hook函数返回值
+> include/uapi/linux/netfilter.h
+```c
+/* Responses from hook functions. */
+#define NF_DROP 0
+#define NF_ACCEPT 1
+#define NF_STOLEN 2  // 不继续传输，由勾子函数进行处理
+#define NF_QUEUE 3
+#define NF_REPEAT 4
+#define NF_STOP 5	/* Deprecated, for userspace nf_queue compatibility. */
+#define NF_MAX_VERDICT NF_STOP
+```
+### 2.2.3 注册勾子函数
+#### 2.2.3.1 定义nf_hook_ops对象
+```c
+struct nf_hook_ops {
+	/* 用户填写 */
+	nf_hookfn		*hook; // 要挂入的 钩子处理函数
+	struct net_device	*dev;
+	void			*priv;
+	u8			pf;
+	enum nf_hook_ops_type	hook_ops_type:8;
+	unsigned int		hooknum; // hook 挂载点编号
+	/* Hooks are ordered in ascending priority. */
+	int			priority; //优先级（数字越小越早执行）
+};
+```
+#### 2.2.3.2 注册钩子函数
+```c
+/* Function to register/unregister hook points. */
+int nf_register_net_hook(struct net *net, const struct nf_hook_ops *ops);
+void nf_unregister_net_hook(struct net *net, const struct nf_hook_ops *ops);
+int nf_register_net_hooks(struct net *net, const struct nf_hook_ops *reg,
+			  unsigned int n);
+```
+# 3. 连接跟踪
+>net/netfilter/nf_conntrack_proto.c<br>
+最重要的两个两个连接跟踪回调函数，NF_INET_PRE_ROUTING钩子回调函数ipv4_conntrack_in()和NF_INET_LOCAL_OUT钩子回调函数ipv4_conntrack_local()，优先级为NF_IP_PRI_CONNTRACK(-200)
+## 3.1 连接跟踪回调函数
+### 3.1.1 ipv4_conntrack_in
+```c
+static unsigned int ipv4_conntrack_in(void *priv,
+				      struct sk_buff *skb,
+				      const struct nf_hook_state *state)
+{
+	return nf_conntrack_in(skb, state);
+}
+```
+
+```c
+static const struct nf_hook_ops ipv4_conntrack_ops[] = {
+	{
+		.hook		= ipv4_conntrack_in,
+		.pf		= NFPROTO_IPV4,
+		.hooknum	= NF_INET_PRE_ROUTING,
+		.priority	= NF_IP_PRI_CONNTRACK,
+	},
+	{
+		.hook		= ipv4_conntrack_local,
+		.pf		= NFPROTO_IPV4,
+		.hooknum	= NF_INET_LOCAL_OUT,
+		.priority	= NF_IP_PRI_CONNTRACK,
+	},
+	{
+		.hook		= nf_confirm,
+		.pf		= NFPROTO_IPV4,
+		.hooknum	= NF_INET_POST_ROUTING,
+		.priority	= NF_IP_PRI_CONNTRACK_CONFIRM,
+	},
+	{
+		.hook		= nf_confirm,
+		.pf		= NFPROTO_IPV4,
+		.hooknum	= NF_INET_LOCAL_IN,
+		.priority	= NF_IP_PRI_CONNTRACK_CONFIRM,
+	},
+};
+```
+```c
+static unsigned int ipv4_conntrack_local(void *priv,
+					 struct sk_buff *skb,
+					 const struct nf_hook_state *state)
+{
+	if (ip_is_fragment(ip_hdr(skb))) { /* IP_NODEFRAG setsockopt set */
+		enum ip_conntrack_info ctinfo;
+		struct nf_conn *tmpl;
+
+		tmpl = nf_ct_get(skb, &ctinfo);
+		if (tmpl && nf_ct_is_template(tmpl)) {
+			/* when skipping ct, clear templates to avoid fooling
+			 * later targets/matches
+			 */
+			skb->_nfct = 0;
+			nf_ct_put(tmpl);
+		}
+		return NF_ACCEPT;
+	}
+
+	return nf_conntrack_in(skb, state);
+}
+```
+
+### 3.1.1 连接跟踪的基本元素 struct nf_conntrack_tuple
+> include/net/netfilter/nf_conntrack_tuple.h
+```c
+struct nf_conntrack_tuple {
+	struct nf_conntrack_man src;
+
+	/* These are the parts of the tuple which are fixed. */
+	struct {
+		union nf_inet_addr u3;
+		union {
+			/* Add other protocols here. */
+			__be16 all;
+
+			struct {
+				__be16 port;
+			} tcp;
+			struct {
+				__be16 port;
+			} udp;
+			struct {
+				u_int8_t type, code;
+			} icmp;
+			struct {
+				__be16 port;
+			} dccp;
+			struct {
+				__be16 port;
+			} sctp;
+			struct {
+				__be16 key;
+			} gre;
+		} u;
+
+		/* The protocol. */
+		u_int8_t protonum;
+
+		/* The direction must be ignored for the tuplehash */
+		struct { } __nfct_hash_offsetend;
+
+		/* The direction (for tuplehash) */
+		u_int8_t dir;
+	} dst;
+};
+```

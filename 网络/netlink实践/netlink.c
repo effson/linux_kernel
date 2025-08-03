@@ -20,7 +20,7 @@ MODULE_DESCRIPTION("Netlink Test Module");
 struct sock *nl_sk = NULL;
 extern struct net init_net;
 
-static int send_msg_to_user(const char *pbuf, int len)
+static int send_msg_to_user(const char *pbuf, int len, u32 pid)
 {
     struct sk_buff *nl_skb;
     struct nlmsghdr *nlh;
@@ -42,7 +42,7 @@ static int send_msg_to_user(const char *pbuf, int len)
 
     memcpy(nlmsg_data(nlh), pbuf, len);
 
-    ret = netlink_unicast(nl_sk, nl_skb, USER_PORT, MSG_DONTWAIT);
+    ret = netlink_unicast(nl_sk, nl_skb, pid, MSG_DONTWAIT);
     return ret;
 }
 
@@ -56,8 +56,8 @@ static void  netlink_recv_msg(struct sk_buff *skb)
         nlh = nlmsg_hdr(skb);
         umsg = NLMSG_DATA(nlh);
         if (umsg) {
-            printk(KERN_INFO "Received message from user: %s\n", kmsg);
-            send_msg_to_user(kmsg, strlen(kmsg));
+            printk(KERN_INFO "Received message from user: %s\n", umsg);
+            send_msg_to_user(kmsg, strlen(kmsg) + 1, nlh->nlmsg_pid);
         }
     }
 }

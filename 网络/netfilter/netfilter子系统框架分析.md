@@ -23,4 +23,10 @@ enum nf_inet_hooks {
 };
 ```
 ## 2.1 NF_INET_PRE_ROUTING
-在IPv4中，这个挂接点方法为ip_rcv(),在IPv4中为ipv6_rcv(),所有的入栈数据包遇到的第一个挂载点，处于路由选择子系统查找之前。
+在IPv4中，这个挂接点方法为ip_rcv(),在IPv6中为ipv6_rcv(),所有的入栈数据包遇到的第一个挂载点，处于路由选择子系统查找之前。
+## 2.2 NF_INET_LOCAL_IN
+在IPv4中，这个挂接点方法为ip_local_deliver(),在IPv6中为ip6_input(),所有发送到当前主机的数据包，经过NF_INET_PRE_ROUTING并执行路由选择子系统查找后，都将到达这个挂载点
+## 2.3 NF_INET_FORWARD
+在IPv4中，这个挂接点方法为ip_forward(),在IPv6中为ip6_forward(),所有要转发的数据包，经过NF_INET_PRE_ROUTING并执行路由选择子系统查找后，都将到达这个挂载点
+## 2.4 NF_INET_POST_ROUTING
+在IPv4中，这个挂接点方法为ip_output(),在IPv6中为ip6_forward(),所有要转发的数据包，经过NF_INET_PRE_ROUTING并执行路由选择子系统查找后，都将到达这个挂载点

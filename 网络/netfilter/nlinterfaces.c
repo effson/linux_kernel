@@ -12,15 +12,33 @@ struct nl_req_s {
   struct nlmsghdr hdr;
   struct rtgenmsg gen;
 };
-
+/* 
++----------------+
+| nlmsghdr       |  (通用 Netlink 消息头部)
++----------------+
+| Message Body   |  (特定类型的消息体，例如 rtgenmsg, ifinfomsg, rtmsg 等)
++----------------+
+| Netlink Attributes | (可选的 TLV 格式属性，提供额外详细信息)
++----------------+
+*/
 void rtnetfilter_print_link(struct nlmsghdr *h) 
 {
+/* struct ifinfomsg 是 Linux 内核和用户空间之间
+  通过 Netlink 协议交换网络接口信息时使用的数据结构，
+  主要用于描述 网络设备（network interface）状态*/
   struct ifinfomsg *iface;
+  /*Netlink Route（rtnetlink）消息中一个“Type-Length-Value (TLV)” 
+  格式的单个属性头，用于封装附加字段，比如接口名、MAC 地址、MTU 等*/
   struct rtattr *attr; 
   int len = 0;
   iface = NLMSG_DATA(h);
   len = RTM_PAYLOAD(h);
 
+  /* [ Netlink header ]
+     [ struct ifinfomsg ]  ← 固定字段
+     [ struct rtattr ]     ← attribute 1
+     [ struct rtattr ]     ← attribute 2 
+   */
   for (attr = IFLA_RTA(iface); RTA_OK(attr, len); attr = RTA_NEXT(attr, len)) 
   {
     switch(attr->rta_type) {

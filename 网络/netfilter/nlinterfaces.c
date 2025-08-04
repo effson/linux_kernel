@@ -15,7 +15,6 @@ struct nl_req_s {
 
 void rtnetfilter_print_link(struct nlmsghdr *h) 
 {
-
   struct ifinfomsg *iface;
   struct rtattr *attr; 
   int len = 0;
@@ -36,6 +35,7 @@ void rtnetfilter_print_link(struct nlmsghdr *h)
                     mac_addr[3], mac_addr[4], mac_addr[5]);
           } else {
             printf("  MAC Address (invalid length): ");
+            // 可以选择打印原始字节或进行其他错误处理
             for (int i = 0; i < RTA_PAYLOAD(attr); i++) {
               printf("%02x%s", mac_addr[i], (i == RTA_PAYLOAD(attr) - 1) ? "" : ":");
             }
@@ -60,9 +60,8 @@ int main (int argc, char *argv[]) {
   memset(&nlsock, 0, sizeof(nlsock));
   nlsock.nl_family = AF_NETLINK;
   nlsock.nl_groups = 0;
-  // nlsock.nl_pid = 0;
-
-  if (s = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE) < 0) {
+  s = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
+  if (s < 0) {
     perror("netlink socket fail.\n");
     exit(1);
   }
@@ -86,7 +85,8 @@ int main (int argc, char *argv[]) {
   msg.msg_name = &nlsock;
   msg.msg_namelen = sizeof(nlsock);
 
-  if (sendmsg(s, &msg, 0) < 0) {
+  s = sendmsg(s, &msg, 0);
+  if (s < 0) {
     perror("sendmsg\n");
     exit(1);
   }
@@ -97,7 +97,8 @@ int main (int argc, char *argv[]) {
     msg.msg_iov->iov_base = buf;
     msg.msg_iov->iov_len = BUFSIZE;
 
-    if (len = recvmsg(s, &msg, 0) < 0) 
+    len = recvmsg(s, &msg, 0);
+    if (len < 0) 
     {
       perror("recvmsg");
     }

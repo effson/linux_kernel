@@ -148,3 +148,23 @@ struct epitem {
 	struct epoll_event event;
 };
 ```
+### eppoll_entry
+> fs/eventpoll.c
+```c
+struct eppoll_entry {
+	/* List header used to link this structure to the "struct epitem" */
+	struct eppoll_entry *next;
+
+	/* The "base" pointer is set to the container "struct epitem" */
+	struct epitem *base;
+
+	/*
+	 * Wait queue item that will be linked to the target file wait
+	 * queue head.
+	 */
+	wait_queue_entry_t wait;
+
+	/* The wait queue head that linked the "wait" wait queue item */
+	wait_queue_head_t *whead;
+};
+```

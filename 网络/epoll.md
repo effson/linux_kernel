@@ -1,4 +1,4 @@
-## 内核源码
+## 内核结构体源码
 ### epoll_event
 >include/uapi/linux/eventpoll.h
 ```c
@@ -152,19 +152,21 @@ struct epitem {
 > fs/eventpoll.c
 ```c
 struct eppoll_entry {
-	/* List header used to link this structure to the "struct epitem" */
+	/* 指向下一个 eppoll_entry 结构体的指针
+List header used to link this structure to the "struct epitem" */
 	struct eppoll_entry *next;
 
-	/* The "base" pointer is set to the container "struct epitem" */
+	/* eppoll_entry 指回其所在的父容器 epitem */
 	struct epitem *base;
 
 	/*
-	 * Wait queue item that will be linked to the target file wait
-	 * queue head.
+	 *等待队列项（wait queue entry）将epoll 实例与被监控的文件描述符连接起来的直接机制
 	 */
 	wait_queue_entry_t wait;
 
-	/* The wait queue head that linked the "wait" wait queue item */
+	/* 指向等待队列头部的指针 ，指向了 eppoll_entry->wait 成员被链接到
+	的那个文件描述符的等待队列头部*/
 	wait_queue_head_t *whead;
 };
 ```
+## epoll的内核实现

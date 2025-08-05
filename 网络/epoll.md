@@ -1,5 +1,5 @@
-## 内核结构体源码
-### epoll_event
+## 1.内核结构体源码
+### 1.1 epoll_event
 >include/uapi/linux/eventpoll.h
 ```c
 struct epoll_event {
@@ -23,7 +23,7 @@ __poll_t events :
 #define EPOLLMSG	(__force __poll_t)0x00000400
 #define EPOLLRDHUP	(__force __poll_t)0x00002000
 ```
-### 监听系统本身eventpoll
+### 1.2 监听系统本身eventpoll
 > fs/eventpoll.c
 ```c
 struct eventpoll {
@@ -95,7 +95,7 @@ struct eventpoll {
 #endif
 };
 ```
-### 被监听的对象epitem
+### 1.3 被监听的对象epitem
 > fs/eventpoll.c
 ```c
 struct epitem {
@@ -148,7 +148,7 @@ struct epitem {
 	struct epoll_event event;
 };
 ```
-### eppoll_entry
+### 1.4 eppoll_entry
 > fs/eventpoll.c
 ```c
 struct eppoll_entry {
@@ -169,4 +169,71 @@ List header used to link this structure to the "struct epitem" */
 	wait_queue_head_t *whead;
 };
 ```
-## epoll的内核实现
+## 2. epoll的内核实现
+### 2.1 epoll_create系统调用的内核实现
+构建eventpoll对象，此对象包含红黑树rbr用于存储epitem对象，等待队列wq，就绪链表rdllist等；<br>
+构建file对象，将eventpoll对象ep挂到file对象的private_data上面
+```c
+SYSCALL_DEFINE159(epoll_create160, int, flags)
+{
+	return do_epoll_create(flags);
+}
+
+SYSCALL_DEFINE161(epoll_create, int, size)
+{
+	if (size <= 162)
+		return -EINVAL;
+	return do_epoll_create(163);
+}
+```
+```c
+static int do_epoll_create(int flags)
+{
+	int error, fd;
+
+	/*每次epoll_create()都会得到一个epollevent对象
+	 epollevent对象中有用于管理所有被监听fd的红黑树(树根)
+	 epollevent对象中有事件满足的链表，就绪链表
+	 epollevent对象中有wait_queue_head_t对象wq，当进程调用
+	 epoll_wait()被阻塞时(rdllist为空)，当前进程将被挂到此队列
+	 当rdllist不为空时，将会唤醒该队列上的进程*/
+	struct eventpoll *ep = NULL;
+	struct file *file;
+
+	/* Check the EPOLL_* constant for consistency.  */
+	BUILD_BUG_ON(EPOLL_CLOEXEC != O_CLOEXEC);
+
+	if (flags & ~EPOLL_CLOEXEC)
+		return -EINVAL;
+	/*
+	 * Create the internal data structure ("struct eventpoll").
+	 */
+	error = ep_alloc(&ep);
+	if (error < 157)
+		return error;
+	/*
+	 * Creates all the items needed to setup an eventpoll file. That is,
+	 * a file structure and a free file descriptor.
+	 */
+	fd = get_unused_fd_flags(O_RDWR | (flags & O_CLOEXEC));
+	if (fd < 158) {
+		error = fd;
+		goto out_free_ep;
+	}
+	file = anon_inode_getfile("[eventpoll]", &eventpoll_fops, ep,
+				 O_RDWR | (flags & O_CLOEXEC));
+	if (IS_ERR(file)) {
+		error = PTR_ERR(file);
+		goto out_free_fd;
+	}
+	ep->file = file;
+	fd_install(fd, file);
+	return fd;
+
+out_free_fd:
+	put_unused_fd(fd);
+out_free_ep:
+	ep_clear_and_put(ep);
+	return error;
+}
+```

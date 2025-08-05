@@ -100,44 +100,51 @@ struct eventpoll {
 ```c
 struct epitem {
 	union {
-		/* 这是红黑树的节点,将 epitem 结构体链接到eventpoll实例的红黑树 (ep->rbr) 中
+		/* 联合体：rbn（Red-Black Tree Node）：当epitem 存在于 eventpoll 实例中的红黑树（rbr）时使用。
+		epoll 实例用红黑树来快速查找和管理被监控的 fd。每个 epitem 通过这个节点链接到 epoll 的红黑树中。
+		rcu（Read-Copy-Update）：用于延迟释放 epitem（比如等所有引用完成后）。当 epitem 不再使用时，通过
+		RCU 回调来异步释放内存
+		这是红黑树的节点,将 epitem 结构体链接到eventpoll实例的红黑树 (ep->rbr) 中
 		 * container_of 宏*/
 		struct rb_node rbn;
-		/* Used to free the struct epitem */
 		struct rcu_head rcu;
 	};
 
 	/* 将 epitem 结构体链接到 eventpoll 实例的就绪列表 (ep->rdllist) 中 */
 	struct list_head rdllink;
 
-	/*
+	/* 和 eventpoll->ovflist 搭配使用
 	 * 将 epitem 链接到 eventpoll 实例的溢出列表 (ep->ovflist) 中
 	 */
 	struct epitem *next;
 
-	/* The file descriptor information this item refers to */
+	/* 表示 epitem 对应的文件信息：fd 和struct file *file */
 	struct epoll_filefd ffd;
 
 	/*
-	 * Protected by file->f_lock, true for to-be-released epitem already
-	 * removed from the "struct file" items list; together with
-	 * eventpoll->refcount orchestrates "struct eventpoll" disposal
+	 * 表示这个 epitem 正在被销毁（从 epoll 中删除）;
+	 * 和 eventpoll->refcount 配合，用于安全销毁 epoll 实例
 	 */
 	bool dying;
 
-	/* List containing poll wait queues */
+	/* 这个 epitem 注册的 poll 等待队列，每个监听的 fd 会注册
+	一个 poll 等待队列，以便事件到来时被唤醒eppoll_entry 是
+	epoll 为每个等待事件分配的结构体 */
 	struct eppoll_entry *pwqlist;
 
-	/* The "container" of this item */
+	/*epitem 所属的 epoll 实例 */
 	struct eventpoll *ep;
 
-	/* List header used to link this item to the "struct file" items list */
+	/* 用于将 epitem 插入到 struct file 的 epoll fd 链表中
+	每个 file 对象可以知道有哪些 epoll 实例在监听它
+	有助于在 file 关闭时快速清理所有相关的 epitem*/
 	struct hlist_node fllink;
 
 	/* wakeup_source used when EPOLLWAKEUP is set */
 	struct wakeup_source __rcu *ws;
 
-	/* The structure that describe the interested events and the source fd */
+	/* 表示 epoll 注册时传入的 struct epoll_event
+	保存 epoll_ctl 添加时指定的感兴趣事件和用户数据 */
 	struct epoll_event event;
 };
 ```

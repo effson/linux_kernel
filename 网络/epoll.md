@@ -51,9 +51,13 @@ struct eventpoll {
 	struct rb_root_cached rbr;
 
 	/*
-	 * This is a single linked list that chains all the "struct epitem" that
-	 * happened while transferring ready events to userspace w/out
-	 * holding ->lock.
+	 * ovflist（overflow list，溢出列表）是一个单链表，它用于解决一个原子性（atomicity）问题。
+	 * 这个场景发生在 epoll_wait() 将就绪事件从内核空间转移到用户空间时 拷贝过程中，另一个事件发生了。
+	 * 这个新发生的事件会触发ep_poll_callback()将对应的 epitem 添加到 rdllist。ep_poll_callback()
+	 * 想要获取 rdllist 的写锁，但此时 epoll_wait() 正在持有读锁，这会导致锁冲突。为了解决这个冲突，
+	 * ovflist 应运而生。ep_poll_callback() 无法立即将新的就绪事件添加到 rdllist（因为它正在被 epoll_wait()
+	 * 读锁锁定）时，会将这个新的就绪事件暂时添加到 ovflist 这个单链表中。
+ 	 * ovflist 的设计就是为了在短时间内临时存储那些无法立即进入 rdllist 的事件
 	 */
 	struct epitem *ovflist;
 
@@ -89,5 +93,51 @@ struct eventpoll {
 	/* tracks wakeup nests for lockdep validation */
 	u8 nests;
 #endif
+};
+```
+### 被监听的对象epitem
+> fs/eventpoll.c
+```c
+struct epitem {
+	union {
+		/* 这是红黑树的节点,将 epitem 结构体链接到eventpoll实例的红黑树 (ep->rbr) 中
+		 * container_of 宏*/
+		struct rb_node rbn;
+		/* Used to free the struct epitem */
+		struct rcu_head rcu;
+	};
+
+	/* 将 epitem 结构体链接到 eventpoll 实例的就绪列表 (ep->rdllist) 中 */
+	struct list_head rdllink;
+
+	/*
+	 * 将 epitem 链接到 eventpoll 实例的溢出列表 (ep->ovflist) 中
+	 */
+	struct epitem *next;
+
+	/* The file descriptor information this item refers to */
+	struct epoll_filefd ffd;
+
+	/*
+	 * Protected by file->f_lock, true for to-be-released epitem already
+	 * removed from the "struct file" items list; together with
+	 * eventpoll->refcount orchestrates "struct eventpoll" disposal
+	 */
+	bool dying;
+
+	/* List containing poll wait queues */
+	struct eppoll_entry *pwqlist;
+
+	/* The "container" of this item */
+	struct eventpoll *ep;
+
+	/* List header used to link this item to the "struct file" items list */
+	struct hlist_node fllink;
+
+	/* wakeup_source used when EPOLLWAKEUP is set */
+	struct wakeup_source __rcu *ws;
+
+	/* The structure that describe the interested events and the source fd */
+	struct epoll_event event;
 };
 ```

@@ -1,4 +1,13 @@
+## 内核源码
+### epoll_event
 >include/uapi/linux/eventpoll.h
+```c
+struct epoll_event {
+	__poll_t events;
+	__u64 data;
+} EPOLL_PACKED;
+```
+__poll_t events :
 ```c
 /* Epoll event masks */
 #define EPOLLIN		(__force __poll_t)0x00000001

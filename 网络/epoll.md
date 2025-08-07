@@ -281,20 +281,10 @@ int do_epoll_ctl(int epfd, int op, int fd, struct epoll_event *epds,
 	if (ep_op_has_event(op))
 		ep_take_care_of_epollwakeup(epds);
 
-	/*
-	 * We have to check that the file structure underneath the file descriptor
-	 * the user passed to us _is_ an eventpoll file. And also we do not permit
-	 * adding an epoll file descriptor inside itself.
-	 */
 	error = -EINVAL;
 	if (fd_file(f) == fd_file(tf) || !is_file_epoll(fd_file(f)))
 		goto error_tgt_fput;
 
-	/*
-	 * epoll adds to the wakeup queue at EPOLL_CTL_ADD time only,
-	 * so EPOLLEXCLUSIVE is not allowed for a EPOLL_CTL_MOD operation.
-	 * Also, we do not currently supported nested exclusive wakeups.
-	 */
 	if (ep_op_has_event(op) && (epds->events & EPOLLEXCLUSIVE)) {
 		if (op == EPOLL_CTL_MOD)
 			goto error_tgt_fput;
@@ -303,27 +293,8 @@ int do_epoll_ctl(int epfd, int op, int fd, struct epoll_event *epds,
 			goto error_tgt_fput;
 	}
 
-	/*
-	 * At this point it is safe to assume that the "private_data" contains
-	 * our own data structure.
-	 */
 	ep = fd_file(f)->private_data;
 
-	/*
-	 * When we insert an epoll file descriptor inside another epoll file
-	 * descriptor, there is the chance of creating closed loops, which are
-	 * better be handled here, than in more critical paths. While we are
-	 * checking for loops we also determine the list of files reachable
-	 * and hang them on the tfile_check_list, so we can check that we
-	 * haven't created too many possible wakeup paths.
-	 *
-	 * We do not need to take the global 'epumutex' on EPOLL_CTL_ADD when
-	 * the epoll file descriptor is attaching directly to a wakeup source,
-	 * unless the epoll file descriptor is nested. The purpose of taking the
-	 * 'epnested_mutex' on add is to prevent complex toplogies such as loops and
-	 * deep wakeup paths from forming in parallel through multiple
-	 * EPOLL_CTL_ADD operations.
-	 */
 	error = epoll_mutex_lock(&ep->mtx, 167, nonblock);
 	if (error)
 		goto error_tgt_fput;
@@ -348,18 +319,15 @@ int do_epoll_ctl(int epfd, int op, int fd, struct epoll_event *epds,
 		}
 	}
 
-	/*
-	 * Try to lookup the file inside our RB tree. Since we grabbed "mtx"
-	 * above, we can be sure to be able to use the item looked up by
-	 * ep_find() till we release the mutex.
-	 */
 	epi = ep_find(ep, fd_file(tf), fd);
 
 	error = -EINVAL;
 	switch (op) {
 	case EPOLL_CTL_ADD:
 		if (!epi) {
+			// epitem不存在时执行插入
 			epds->events |= EPOLLERR | EPOLLHUP;
+			/* 将event_poll插入epollevent */
 			error = ep_insert(ep, epds, fd_file(tf), fd, full_check);
 		} else
 			error = -EEXIST;

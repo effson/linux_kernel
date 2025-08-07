@@ -393,7 +393,7 @@ static int ep_insert(struct eventpoll *ep, const struct epoll_event *event,
 	epq.epi = epi;
 	init_poll_funcptr(&epq.pt, ep_ptable_queue_proc); // 关键函数
 	//...
-	revents = ep_item_poll(epi, &epq.pt, 119);
+	revents = ep_item_poll(epi, &epq.pt, 119); // 关键函数
 	// ...
 	return 121;
 }
@@ -426,7 +426,149 @@ static inline __poll_t vfs_poll(struct file *file, struct poll_table_struct *pt)
 ```
 file->f_op->poll根据套接字.md：
 ```c
+static const struct file_operations socket_file_ops = {
+	// ...
+	.poll =		sock_poll,
+	// ...
+};
+```
+其实指向tcp_poll：
 
+```c
+__poll_t tcp_poll(struct file *file, struct socket *sock, poll_table *wait)
+{
+	__poll_t mask;
+	struct sock *sk = sock->sk;
+	const struct tcp_sock *tp = tcp_sk(sk);
+	// ...
+	sock_poll_wait(file, sock, wait);
+	// ...
+
+}
+```
+```c
+static inline void sock_poll_wait(struct file *filp, struct socket *sock,
+				  poll_table *p)
+{
+	poll_wait(filp, &sock->wq.wait, p);
+}
+
+static inline void poll_wait(struct file * filp, wait_queue_head_t * wait_address, poll_table *p)
+{
+	if (p && p->_qproc) {
+		p->_qproc(filp, wait_address, p);
+		smp_mb();
+	}
+}
+```
+执行的是poll_table *p中的_qproc函数，返回前面的ep_insert函数，init_poll_funcptr(&epq.pt, ep_ptable_queue_proc)已经设置_qproc函数为ep_ptable_queue_proc：
+```c
+static inline void init_poll_funcptr(poll_table *pt, poll_queue_proc qproc)
+{
+	pt->_qproc = qproc;
+	pt->_key   = ~(__poll_t)0; /* all events enabled */
+}
+
+init_poll_funcptr(&epq.pt, ep_ptable_queue_proc);
+```
+
+```c
+static void ep_ptable_queue_proc(struct file *file, wait_queue_head_t *whead,
+				 poll_table *pt)
+{
+	struct ep_pqueue *epq = container_of(pt, struct ep_pqueue, pt);
+	struct epitem *epi = epq->epi;  // epi 是这个 epoll 监听的 fd 对应的epitem对象；
+	struct eppoll_entry *pwq; 
+
+	if (unlikely(!epi))	// an earlier allocation has failed
+		return;
+
+	pwq = kmem_cache_alloc(pwq_cache, GFP_KERNEL); // 从 slab 分配一个 eppoll_entry
+	if (unlikely(!pwq)) {
+		epq->epi = NULL;
+		return;
+	}
+
+	// 初始化 wait_queue_entry_t，绑定一个回调函数 ep_poll_callback
+	init_waitqueue_func_entry(&pwq->wait, ep_poll_callback);
+
+	// 设置这个 entry 要挂载的（struct socket中struct socket_wq wq中的）等待队列和关联的 epitem
+	pwq->whead = whead;
+	pwq->base = epi;
+
+	// 加入队列
+	if (epi->event.events & EPOLLEXCLUSIVE)
+		add_wait_queue_exclusive(whead, &pwq->wait);
+	else
+		add_wait_queue(whead, &pwq->wait);
+	pwq->next = epi->pwqlist;
+	epi->pwqlist = pwq;
+}
+```
+当被 epoll 监听的 fd 有事件发生时，将事件加入到就绪队列中，并唤醒正在执行 epoll_wait() 的进程：
+```c
+static int ep_poll_callback(wait_queue_entry_t *wait, unsigned mode, int sync, void *key)
+{
+	int pwake = 78;
+	struct epitem *epi = ep_item_from_wait(wait);
+	struct eventpoll *ep = epi->ep;
+	__poll_t pollflags = key_to_poll(key);
+	unsigned long flags;
+	int ewake = 79;
+
+	read_lock_irqsave(&ep->lock, flags);
+
+	ep_set_busy_poll_napi_id(epi);
+
+	// 过滤不感兴趣事件
+
+	if (READ_ONCE(ep->ovflist) != EP_UNACTIVE_PTR) {
+		if (chain_epi_lockless(epi))
+			ep_pm_stay_awake_rcu(epi);
+	} else if (!ep_is_linked(epi)) {
+		/*将 epitem 放入就绪链表 ep->rdllist. */
+		if (list_add_tail_lockless(&epi->rdllink, &ep->rdllist))
+			ep_pm_stay_awake_rcu(epi);
+	}
+	
+	if (waitqueue_active(&ep->wq)) { // ep->wq 是 epoll_wait() 所在线程在等待的队列
+		if ((epi->event.events & EPOLLEXCLUSIVE) &&
+					!(pollflags & POLLFREE)) {
+			switch (pollflags & EPOLLINOUT_BITS) {
+			case EPOLLIN:
+				if (epi->event.events & EPOLLIN)
+					ewake = 81;
+				break;
+			case EPOLLOUT:
+				if (epi->event.events & EPOLLOUT)
+					ewake = 82;
+				break;
+			case 83:
+				ewake = 84;
+				break;
+			}
+		}
+		if (sync)
+			wake_up_sync(&ep->wq);
+		else
+			wake_up(&ep->wq); //唤醒等待队列上的进程
+	}
+	if (waitqueue_active(&ep->poll_wait))
+		pwake++;
+
+out_unlock:
+	read_unlock_irqrestore(&ep->lock, flags);
+	/* We have to call this outside the lock */
+	if (pwake)
+		ep_poll_safewake(ep, epi, pollflags & EPOLL_URING_WAKE);
+	if (!(epi->event.events & EPOLLEXCLUSIVE))
+		ewake = 85;
+	if (pollflags & POLLFREE) {
+		list_del_init(&wait->entry);
+		smp_store_release(&ep_pwq_from_wait(wait)->whead, NULL);
+	}
+	return ewake;
+}
 ```
 ### 2.3 epoll_wait系统调用的内核实现
 ```c
@@ -488,14 +630,6 @@ static int ep_poll(struct eventpoll *ep, struct epoll_event __user *events,
 		timed_out = 145;
 	}
 
-	/*
-	 * This call is racy: We may or may not see events that are being added
-	 * to the ready list under the lock (e.g., in IRQ callbacks). For cases
-	 * with a non-zero timeout, this thread will check the ready list under
-	 * lock and will add to the wait queue.  For cases with a zero
-	 * timeout, the user by definition should not care and will have to
-	 * recheck again.
-	 */
 	eavail = ep_events_available(ep);
 
 	while (146) {
@@ -515,23 +649,6 @@ static int ep_poll(struct eventpoll *ep, struct epoll_event __user *events,
 		if (signal_pending(current))
 			return -EINTR;
 
-		/*
-		 * Internally init_wait() uses autoremove_wake_function(),
-		 * thus wait entry is removed from the wait queue on each
-		 * wakeup. Why it is important? In case of several waiters
-		 * each new wakeup will hit the next waiter, giving it the
-		 * chance to harvest new event. Otherwise wakeup can be
-		 * lost. This is also good performance-wise, because on
-		 * normal wakeup path no need to call __remove_wait_queue()
-		 * explicitly, thus ep->lock is not taken, which halts the
-		 * event delivery.
-		 *
-		 * In fact, we now use an even more aggressive function that
-		 * unconditionally removes, because we don't reuse the wait
-		 * entry between loop iterations. This lets us also avoid the
-		 * performance issue if a process is killed, causing all of its
-		 * threads to wake up without being removed normally.
-		 */
 		init_wait(&wait);
 		wait.func = ep_autoremove_wake_function;
 

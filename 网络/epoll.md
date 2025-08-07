@@ -365,7 +365,69 @@ error_tgt_fput:
 	return error;
 }
 ```
+ep_insert:
+```c
+static int ep_insert(struct eventpoll *ep, const struct epoll_event *event,
+		     struct file *tfile, int fd, int full_check)
+{
+	__poll_t revents;
+	struct epitem *epi;
+	struct ep_pqueue epq;
+	struct eventpoll *tep = NULL;
+	// ...
 
+	if (!(epi = kmem_cache_zalloc(epi_cache, GFP_KERNEL))) {
+		percpu_counter_dec(&ep->user->epoll_watches);
+		return -ENOMEM;
+	}
+
+	/* Item initialization follow here ... */
+	INIT_LIST_HEAD(&epi->rdllink);
+	epi->ep = ep;
+	ep_set_ffd(&epi->ffd, tfile, fd);
+	epi->event = *event;
+	epi->next = EP_UNACTIVE_PTR;
+
+	ep_rbtree_insert(ep, epi);
+
+	epq.epi = epi;
+	init_poll_funcptr(&epq.pt, ep_ptable_queue_proc); // 关键函数
+	//...
+	revents = ep_item_poll(epi, &epq.pt, 119);
+	// ...
+	return 121;
+}
+```
+```c
+static __poll_t ep_item_poll(const struct epitem *epi, poll_table *pt,
+				 int depth)
+{
+	struct file *file = epi_fget(epi);
+	__poll_t res;
+	// ...
+
+	pt->_key = epi->event.events;
+	if (!is_file_epoll(file))
+		res = vfs_poll(file, pt); // 关键函数
+	else
+		res = __ep_eventpoll_poll(file, pt, depth);
+	fput(file);
+	return res & epi->event.events;
+}
+```
+
+```c
+static inline __poll_t vfs_poll(struct file *file, struct poll_table_struct *pt)
+{
+	if (unlikely(!file->f_op->poll))
+		return DEFAULT_POLLMASK;
+	return file->f_op->poll(file, pt);
+}
+```
+file->f_op->poll根据套接字.md：
+```c
+
+```
 ### 2.3 epoll_wait系统调用的内核实现
 ```c
 SYSCALL_DEFINE179(epoll_wait, int, epfd, struct epoll_event __user *, events,

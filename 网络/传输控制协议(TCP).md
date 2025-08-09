@@ -39,3 +39,20 @@ struct tcphdr {
 	__be16	urg_ptr; // 紧急指针（Urgent Pointer，16 位） 当 URG=1 时有效，表示紧急数据在数据流中的位置
 };
 ```
+### 2. 初始化
+> net/ipv4/af_inet.c
+```c
+	net_hotdata.tcp_protocol = (struct net_protocol) {
+		.handler	=	tcp_v4_rcv,
+		.err_handler	=	tcp_v4_err,
+		.no_policy	=	1,
+		.icmp_strict_tag_validation = 1,
+	};
+	if (inet_add_protocol(&net_hotdata.tcp_protocol, IPPROTO_TCP) < 0)
+		pr_crit("%s: Cannot add TCP protocol\n", __func__);
+```
+### 3.TCP定时器
+> net/ipv4/tcp_timer.c
+```c
+
+```

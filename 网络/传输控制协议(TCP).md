@@ -121,4 +121,47 @@ void tcp_init_sock(struct sock *sk)
 EXPORT_IPV6_MOD(tcp_init_sock);
 ```
 
-### 4.
+### 4.接收网络层的数据包
+> net/ipv4/tcp_ipv4.c
+
+```c
+int tcp_v4_rcv(struct sk_buff *skb)
+{
+	// ...
+	/* 不是发给本机就丢弃 */
+	if (skb->pkt_type != PACKET_HOST)
+		goto discard_it;
+
+	/* 包长是否大于TCP头的长度 */
+	if (!pskb_may_pull(skb, sizeof(struct tcphdr)))
+		goto discard_it;
+	/* 获取TCP首部 */
+	th = (const struct tcphdr *)skb->data;
+
+	// 检查TCP首部 doff、checksum
+lookup: // 查找匹配的socket，找不到则丢弃
+	sk = __inet_lookup_skb(net->ipv4.tcp_death_row.hashinfo,
+			       skb, __tcp_hdrlen(th), th->source,
+			       th->dest, sdif, &refcounted);
+	// ...
+process:
+	/* 检查IPSEC规则 */
+	if (!xfrm4_policy_check(sk, XFRM_POLICY_IN, skb)) {
+		drop_reason = SKB_DROP_REASON_XFRM_POLICY;
+		goto discard_and_relse;
+	}
+	// ...
+	// 检查BPF规则
+	if (tcp_filter(sk, skb)) {
+		drop_reason = SKB_DROP_REASON_SOCKET_FILTER;
+		goto discard_and_relse;
+	}
+	// ...
+	// 检查socket是否被用户态锁定，为真则进入后备处理队列
+	if (!sock_owned_by_user(sk)) {
+		ret = tcp_v4_do_rcv(sk, skb);
+	} else {
+		if (tcp_add_backlog(sk, skb, &drop_reason))
+			goto discard_and_relse;
+	}
+```

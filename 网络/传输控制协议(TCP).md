@@ -69,13 +69,16 @@ void tcp_init_sock(struct sock *sk)
 	struct tcp_sock *tp = tcp_sk(sk);
 	int rto_min_us, rto_max_ms;
 
+	/* 建立乱序报文红黑树根。接收端把到达但未按序的段暂存于此，等到达缺失段后再合并上交 */
 	tp->out_of_order_queue = RB_ROOT;
+	/* 建立重传队列红黑树根。发送端把已发送未确认的段挂在此队列，超时/丢包时用于重传与 SACK/RACK 判定 */
 	sk->tcp_rtx_queue = RB_ROOT;
+	/* 初始化 TCP 的关键定时器：重传（RTO）、延迟 ACK（delack）、保活（keepalive）等。定时器驱动可靠性与状态机推进 */
 	tcp_init_xmit_timers(sk);
 	INIT_LIST_HEAD(&tp->tsq_node);
 	INIT_LIST_HEAD(&tp->tsorted_sent_queue);
 
-	icsk->icsk_rto = TCP_TIMEOUT_INIT;
+	icsk->icsk_rto = TCP_TIMEOUT_INIT; // 设置初始 RTO（重传超时）。在尚无 RTT 样本时使用一个保守初值
 
 	rto_max_ms = READ_ONCE(sock_net(sk)->ipv4.sysctl_tcp_rto_max_ms);
 	icsk->icsk_rto_max = msecs_to_jiffies(rto_max_ms);
@@ -86,40 +89,32 @@ void tcp_init_sock(struct sock *sk)
 	tp->mdev_us = jiffies_to_usecs(TCP_TIMEOUT_INIT);
 	minmax_reset(&tp->rtt_min, tcp_jiffies32, ~0U);
 
-	/* So many TCP implementations out there (incorrectly) count the
-	 * initial SYN frame in their delayed-ACK and congestion control
-	 * algorithms that we must have the following bandaid to talk
-	 * efficiently to them.  -DaveM
-	 */
+	/* 设置初始拥塞窗口 */
 	tcp_snd_cwnd_set(tp, TCP_INIT_CWND);
-
-	/* There's a bubble in the pipe until at least the first ACK. */
 	tp->app_limited = ~0U;
 	tp->rate_app_limited = 1;
+	tp->snd_ssthresh = TCP_INFINITE_SSTHRESH; // 慢启动阈值初值设为“无限大”
+	tp->snd_cwnd_clamp = ~0; //拥塞窗口钳位上限设为最大
 
-	/* See draft-stevens-tcpca-spec-01 for discussion of the
-	 * initialization of these values.
-	 */
-	tp->snd_ssthresh = TCP_INFINITE_SSTHRESH;
-	tp->snd_cwnd_clamp = ~0;
-	tp->mss_cache = TCP_MSS_DEFAULT;
-
+	tp->mss_cache = TCP_MSS_DEFAULT; /* MSS 缓存初值（占位值）真正有效的 MSS 会在路由/PMTU、
+										选项（如 TS/WS）变化时由 tcp_sync_mss() 更新 */
+	/* 可容忍乱序步数，影响 SACK/RACK 对乱序与丢包的判定阈值 */
 	tp->reordering = READ_ONCE(sock_net(sk)->ipv4.sysctl_tcp_reordering);
-	tcp_assign_congestion_control(sk);
+	tcp_assign_congestion_control(sk); // 绑定当前套接字的拥塞控制算法
 
-	tp->tsoffset = 0;
-	tp->rack.reo_wnd_steps = 1;
+	tp->tsoffset = 0; // TCP 时间戳偏移初值
+	tp->rack.reo_wnd_steps = 1; // RACK 的乱序窗口步进设置，影响按时间/乱序程度判断丢包的敏感度
 
 	sk->sk_write_space = sk_stream_write_space;
 	sock_set_flag(sk, SOCK_USE_WRITE_QUEUE);
 
-	icsk->icsk_sync_mss = tcp_sync_mss;
+	icsk->icsk_sync_mss = tcp_sync_mss;  // 设置MSS 同步函数指针
 
 	WRITE_ONCE(sk->sk_sndbuf, READ_ONCE(sock_net(sk)->ipv4.sysctl_tcp_wmem[1]));
 	WRITE_ONCE(sk->sk_rcvbuf, READ_ONCE(sock_net(sk)->ipv4.sysctl_tcp_rmem[1]));
 	tcp_scaling_ratio_init(sk);
 
-	set_bit(SOCK_SUPPORT_ZC, &sk->sk_socket->flags);
+	set_bit(SOCK_SUPPORT_ZC, &sk->sk_socket->flags); // 声明此 socket 支持零拷贝（如 MSG_ZEROCOPY）
 	sk_sockets_allocated_inc(sk);
 	xa_init_flags(&sk->sk_user_frags, XA_FLAGS_ALLOC1);
 }

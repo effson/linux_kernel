@@ -61,6 +61,7 @@ TCP 的定时器是保证 TCP 协议 可靠性、流量控制、拥塞控制、�
 - 持续定时器（Persist Timer）,触发条件：接收端通告的窗口大小为 0（零窗口）,作用：发送 窗口探测报文（zero-window probe）,防止“死锁”——如果接收端恢复了窗口却没发通知，发送端会一直卡住
 <br>
 要使用TCP套接字，用户空间把必须创建SOCK_STREAM套接字，在内核里面由回调函数tcp_v4_init_socket()来处理，实际工作由tcp_init_sock()完成所有处理操作：
+
 ```c
 void tcp_init_sock(struct sock *sk)
 {
@@ -124,4 +125,5 @@ void tcp_init_sock(struct sock *sk)
 }
 EXPORT_IPV6_MOD(tcp_init_sock);
 ```
+
 ### 4.

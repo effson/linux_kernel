@@ -85,3 +85,9 @@
 #### SO_REUSEPORT，SO_REUSEADDR复用端口，避免换用新的端口，允许套接字在旧连接仍处于 TIME_WAIT 时快速 bind 成功（相同 IP:PORT）
 #### 修改内核等待时间（需要双端在同一个路由器）
 #### 设置SO_LINGER为0，调用 close() 时，直接丢弃发送缓冲区的数据，立即发送一个 RST（复位包）给对端，对端收到 RST，认为连接被强制中断
+```c
+struct linger so;
+so.l_onoff = 1;   // 打开 linger 选项
+so.l_linger = 0;  // 超时时间 0
+setsockopt(fd, SOL_SOCKET, SO_LINGER, &so, sizeof(so));
+```

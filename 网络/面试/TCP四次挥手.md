@@ -2,6 +2,11 @@
 
 <img width="366" height="346" alt="image" src="https://github.com/user-attachments/assets/9bf85772-0020-4cfc-b577-85001080a0dd" />
 
+### 2MSL(Maximum Segment Lifetime)
+<mark>**MSL (Maximum Segment Lifetime)：一个报文在网络中能存活的最长时间**</mark>
+
+
+
 ## 1.1 第一次挥手
 ### 客户端用户空间
 - 应用程序调用 close(fd) 或 shutdown(fd, SHUT_WR)
@@ -24,3 +29,9 @@
 - 服务端进程不会立刻感知到 FIN（因为 read 可能还有缓冲区的数据）
 - 当 recv()/read() 返回 0 时，应用层才知道对端关闭了发送方向
 - 应用程序通常会：处理完剩余数据；调用 close() 或 shutdown() 关闭自己这边的连接，从而进入后续的挥手流程
+
+## 1.2 第二次挥手
+
+## 1.3 第三次挥手
+
+## 1.4 第四次挥手

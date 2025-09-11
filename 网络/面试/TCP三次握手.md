@@ -1,5 +1,6 @@
 # 1.背景
 ## 1.1 三次握手
+<img width="366" height="328" alt="image" src="https://github.com/user-attachments/assets/2271a9d7-613b-41b7-b09e-6ab3156437e8" />
 
 
 ## 1.2TCP特点

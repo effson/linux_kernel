@@ -6,7 +6,7 @@
 
 
 ## 1.3 socket五元组
-TCP socket 的 五元组 (5-tuple) 是用来唯一标识一条 TCP 连接的五个元素，通常包括以下内容：
+socket 的 五元组 (5-tuple) 是用来<mark>**唯一标识一条连接的五个元素，同一个五元组只允许建立一条连接**</mark>通常包括以下内容：
 ### 源 IP 地址 (Source IP Address)
 发起连接的一方的 IP 地址。
 ### 目标 IP 地址 (Destination IP Address)
